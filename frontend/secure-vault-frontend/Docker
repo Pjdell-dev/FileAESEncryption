@@ -1,0 +1,32 @@
+# frontend/secure-vault-frontend/Dockerfile
+
+# --- Stage 1: Dependencies ---
+# Use the official Node.js image as the base for installing dependencies
+FROM node:20-alpine AS dependencies
+# Set the working directory inside the container
+WORKDIR /usr/src/app
+# Copy package.json and package-lock.json (or yarn.lock) first
+# This leverages Docker layer caching if these files haven't changed
+COPY package*.json ./
+# Install ONLY the dependencies defined in package-lock.json
+# This is faster and more reproducible than 'npm install'
+RUN npm ci
+
+# --- Stage 2: Development Server ---
+# Use the official Node.js image again for the development stage
+FROM node:20-alpine AS development
+# Set the working directory
+WORKDIR /usr/src/app
+# Copy the node_modules directory from the 'dependencies' stage
+# This ensures all necessary packages (including Vite) are available
+COPY --from=dependencies /usr/src/app/node_modules ./node_modules
+# Copy the rest of the application source code
+COPY . .
+
+# Expose the port the Vite development server will run on
+EXPOSE 5173
+
+# Define the command to run the Vite development server
+# The '--host 0.0.0.0' flag is crucial for Docker to make the server accessible from the host
+# The '--port 5173' explicitly sets the port (matches docker-compose.yml)
+CMD ["npx", "vite", "--host", "0.0.0.0", "--port", "5173"]

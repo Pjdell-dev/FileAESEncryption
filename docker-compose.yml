@@ -1,0 +1,91 @@
+# CORRECT - Notice the colon ':' after 'ports' and the dash '-' with correct indentation
+version: "3.8"
+services:
+  db:
+    image: mysql:8.0
+    container_name: dms_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: secure_vault
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "3306:3306" # Correct format: "HOST_PORT:CONTAINER_PORT"
+    networks:
+      - dms_net
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: laravel_app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./backend:/var/www
+    depends_on:
+      - db
+    networks:
+      - dms_net
+    # Example: If you expose PHP-FPM directly (not recommended with Nginx)
+    # ports:
+    #   - "9000:9000"
+    # Example: If you want to expose Nginx running inside the 'app' container (not typical setup)
+    # ports:
+    #  - "8000:80"
+
+  web:
+    image: nginx:alpine
+    container_name: dms_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80" # Correct format
+    volumes:
+      - ./backend/public:/var/www/public:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - dms_net
+
+  # ... (other services like db, app, web) ...
+
+  # --- REACT FRONTEND SERVICE ---
+  node: # Service name (you can also name it 'frontend' if you prefer)
+    # Use the Dockerfile to build the image
+    build:
+      context: ./frontend/secure-vault-frontend # Path to your Vite project directory
+      dockerfile: Docker                   # Name of your Dockerfile
+      # target: development # Optional: specify stage if using multi-stage (default is last stage)
+    container_name: react_app # Name of the running container
+    restart: unless-stopped   # Restart policy
+    ports:
+      # Map host port 5173 to container port 5173 (Vite's default dev port)
+      - "5173:5173"
+    volumes:
+      # Mount source code for live reloading during development
+      # IMPORTANT: The path BEFORE the colon must match your 'context' path
+      # and should point to the directory containing package.json, vite.config.js, src/, etc.
+      - ./frontend/secure-vault-frontend:/usr/src/app
+      # Anonymous volume for node_modules to prevent permission issues
+      # and ensure the container uses the modules installed during the Docker build.
+      # IMPORTANT: The path AFTER the colon must match the WORKDIR in your Dockerfile
+      # and where node_modules is expected during the build/runtime.
+      - /usr/src/app/node_modules
+    networks:
+      - dms_net # Connect to the same network as other services
+    # The command to run is now defined in the Dockerfile's CMD instruction
+    # command: ... # <-- REMOVE any existing command line
+
+  # --- END OF REACT FRONTEND SERVICE ---
+
+# ... (rest of your docker-compose.yml: volumes, networks) ...
+
+volumes:
+  db_data:
+
+networks:
+  dms_net:
